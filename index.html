@@ -3,37 +3,111 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="mobile-web-app-capable" content="yes">
-    <meta name="theme-color" content="#050505">
-    <title>Cítara de Connes TODA</title>
+    <title>Cítara de Connes: Guardar Senda</title>
     <style>
         body { background: #050505; color: #00ffcc; font-family: monospace; margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
-        #startBtn { width: 100%; height: 100vh; background: #050505; color: #00ffcc; border: 2px solid #00ffcc; font-size: 1.5rem; cursor: pointer; z-index: 1000; position: fixed; }
-        .header { padding: 15px; text-align: center; border-bottom: 1px solid #333; font-size: 0.8rem; }
-        .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 15px; flex-grow: 1; }
-        .key { background: #111; border: 1px solid #333; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; transition: 0.1s; -webkit-tap-highlight-color: transparent; }
-        .key:active { background: #00ffcc; color: #000; transform: scale(0.9); }
+        #startBtn { width: 100%; height: 100vh; background: #050505; color: #00ffcc; border: 2px solid #00ffcc; font-size: 1.5rem; z-index: 1000; position: fixed; }
+        .controls { display: grid; grid-template-columns: 1fr 1fr; background: #111; padding: 10px; gap: 8px; border-bottom: 1px solid #333; }
+        button.tool { padding: 12px; background: #222; color: #00ffcc; border: 1px solid #00ffcc; border-radius: 5px; font-size: 0.65rem; font-weight: bold; }
+        #board { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 15px; flex-grow: 1; }
+        .key { background: #111; border: 1px solid #333; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; -webkit-tap-highlight-color: transparent; }
+        .key:active { background: #00ffcc; color: #000; }
+        input[type="file"] { display: none; }
     </style>
 </head>
 <body>
 
-<button id="startBtn">TOCAR LA RED L11<br><small>(Pulsa para iniciar)</small></button>
+<button id="startBtn">SINCRONIZAR RED L11<br><small>(Pulsa para iniciar)</small></button>
 
-<div class="header">CÍTARA DE CONNES v2.0 | S_E = 137 ln(28)</div>
-<div class="grid" id="board"></div>
+<div class="controls">
+    <button class="tool" onclick="toggleRecord()" id="recBtn">🔴 GRABAR</button>
+    <button class="tool" onclick="descargarSenda()">💾 GUARDAR .TXT</button>
+    <button class="tool" onclick="document.getElementById('fileInput').click()">📂 CARGAR .TXT</button>
+    <button class="tool" onclick="playSenda()">▶️ REPRODUCIR</button>
+    <input type="file" id="fileInput" accept=".txt">
+</div>
+
+<div id="board"></div>
 
 <script>
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     let prevOp = 1;
-    const kInf = 0.001515;
+    let senda = [];
+    let grabando = false;
 
-    document.getElementById('startBtn').onclick = function() {
-        ctx.resume();
-        this.style.display = 'none';
+    document.getElementById('startBtn').onclick = function() { ctx.resume(); this.style.display = 'none'; };
+
+    function toggleRecord() {
+        grabando = !grabando;
+        document.getElementById('recBtn').innerText = grabando ? "⏹️ PARAR" : "🔴 GRABAR";
+        if (grabando) senda = [];
+    }
+
+    // --- FUNCIÓN PARA GUARDAR ---
+    function descargarSenda() {
+        if (senda.length === 0) return alert("No hay senda que guardar.");
+        const blob = new Blob([senda.join(",")], { type: "text/plain" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "senda_connes_" + Date.now() + ".txt";
+        a.click();
+    }
+
+    // --- FUNCIÓN PARA LEER ---
+    document.getElementById('fileInput').onchange = function(e) {
+        const reader = new FileReader();
+        reader.onload = function() {
+            // Convierte el texto "1,14,28" en el array [1, 14, 28]
+            senda = reader.result.split(",").map(Number);
+            alert("Senda cargada: " + senda.length + " pasos listos.");
+        };
+        reader.readAsText(e.target.files[0]);
     };
 
-    function playOp(n) {
+    async function playSenda() {
+        if (senda.length === 0) return alert("Carga o graba una senda primero.");
+        for (let op of senda) {
+            playOp(op, false); // false para no volver a grabar mientras reproduce
+            await new Promise(r => setTimeout(r, 600));
+        }
+    }
+
+    function playOp(n, registrar = true) {
+        if (ctx.state === 'suspended') ctx.resume();
+        const now = ctx.currentTime;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+
+        let freq = 137.036 * (1 + Math.log(n));
+        let mod = 1.0 + (n - prevOp) / 28.0;
+        freq *= mod;
+        prevOp = n;
+
+        if (grabando && registrar) senda.push(n);
+
+        osc.frequency.setValueAtTime(freq, now);
+        osc.frequency.exponentialRampToValueAtTime(freq * 0.998, now + 0.6);
+        gain.gain.setValueAtTime(0.3, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.6);
+
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.start(); osc.stop(now + 0.6);
+    }
+
+    // Crear Teclado
+    const board = document.getElementById('board');
+    for(let i=1; i<=28; i++) {
+        const el = document.createElement('div');
+        el.className = 'key'; el.innerText = i;
+        const tri = i % 3;
+        el.style.borderColor = tri === 0 ? '#ff0055' : (tri === 1 ? '#00ffcc' : '#ffcc00');
+        el.onpointerdown = (e) => { e.preventDefault(); playOp(i); };
+        board.appendChild(el);
+    }
+</script>
+</body>
+</html>
         if (ctx.state === 'suspended') ctx.resume();
         const now = ctx.currentTime;
         const osc = ctx.createOscillator();
