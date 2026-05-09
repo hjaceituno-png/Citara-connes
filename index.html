@@ -3,21 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Cítara de Connes: Guardar Senda</title>
+    <title>Cítara de Connes TODA</title>
     <style>
-        body { background: #050505; color: #00ffcc; font-family: monospace; margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
-        #startBtn { width: 100%; height: 100vh; background: #050505; color: #00ffcc; border: 2px solid #00ffcc; font-size: 1.5rem; z-index: 1000; position: fixed; }
-        .controls { display: grid; grid-template-columns: 1fr 1fr; background: #111; padding: 10px; gap: 8px; border-bottom: 1px solid #333; }
-        button.tool { padding: 12px; background: #222; color: #00ffcc; border: 1px solid #00ffcc; border-radius: 5px; font-size: 0.65rem; font-weight: bold; }
-        #board { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 15px; flex-grow: 1; }
-        .key { background: #111; border: 1px solid #333; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; -webkit-tap-highlight-color: transparent; }
+        body { background: #000; color: #00ffcc; font-family: monospace; margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        #startBtn { width: 100%; height: 100vh; background: #000; color: #00ffcc; border: 2px solid #00ffcc; font-size: 1.5rem; z-index: 2000; position: fixed; }
+        .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; padding: 10px; background: #0a0a0a; border-bottom: 1px solid #333; z-index: 10; }
+        button.tool { padding: 10px; background: #111; color: #00ffcc; border: 1px solid #00ffcc; border-radius: 5px; font-size: 0.6rem; font-weight: bold; }
+        #board { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; padding: 10px; flex-grow: 1; overflow-y: auto; padding-bottom: 20px; }
+        .key { background: #050505; border: 2px solid #333; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; height: 60px; -webkit-tap-highlight-color: transparent; }
         .key:active { background: #00ffcc; color: #000; }
         input[type="file"] { display: none; }
     </style>
 </head>
 <body>
 
-<button id="startBtn">SINCRONIZAR RED L11<br><small>(Pulsa para iniciar)</small></button>
+<button id="startBtn">SINCRONIZAR RED L11<br><small>Hacer camino al andar</small></button>
 
 <div class="controls">
     <button class="tool" onclick="toggleRecord()" id="recBtn">🔴 GRABAR</button>
@@ -34,6 +34,76 @@
     let prevOp = 1;
     let senda = [];
     let grabando = false;
+
+    document.getElementById('startBtn').onclick = function() { ctx.resume(); this.style.display = 'none'; };
+
+    function toggleRecord() {
+        grabando = !grabando;
+        document.getElementById('recBtn').innerText = grabando ? "⏹️ PARAR" : "🔴 GRABAR";
+        if (grabando) senda = [];
+    }
+
+    function descargarSenda() {
+        if (senda.length === 0) return alert("Graba algo primero.");
+        const blob = new Blob([senda.join(",")], { type: "text/plain" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "senda_" + Date.now() + ".txt";
+        a.click();
+    }
+
+    document.getElementById('fileInput').onchange = function(e) {
+        const reader = new FileReader();
+        reader.onload = function() {
+            senda = reader.result.split(",").map(Number);
+            alert("Senda de " + senda.length + " pasos cargada.");
+        };
+        reader.readAsText(e.target.files[0]);
+    };
+
+    async function playSenda() {
+        if (senda.length === 0) return alert("Carga una senda.");
+        for (let op of senda) {
+            playOp(op, false);
+            await new Promise(r => setTimeout(r, 600));
+        }
+    }
+
+    function playOp(n, registrar = true) {
+        if (ctx.state === 'suspended') ctx.resume();
+        const now = ctx.currentTime;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+
+        let freq = 137.036 * (1 + Math.log(n));
+        let mod = 1.0 + (n - prevOp) / 28.0;
+        freq *= mod;
+        prevOp = n;
+
+        if (grabando && registrar) senda.push(n);
+
+        osc.frequency.setValueAtTime(freq, now);
+        osc.frequency.exponentialRampToValueAtTime(freq * 0.998, now + 0.6);
+        gain.gain.setValueAtTime(0.2, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.6);
+
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.start(); osc.stop(now + 0.6);
+    }
+
+    const board = document.getElementById('board');
+    for(let i=1; i<=28; i++) {
+        const el = document.createElement('div');
+        el.className = 'key'; el.innerText = i;
+        const tri = i % 3;
+        el.style.borderColor = tri === 0 ? '#ff0055' : (tri === 1 ? '#00ffcc' : '#ffcc00');
+        el.onpointerdown = (e) => { e.preventDefault(); playOp(i); };
+        board.appendChild(el);
+    }
+</script>
+</body>
+</html>
 
     document.getElementById('startBtn').onclick = function() { ctx.resume(); this.style.display = 'none'; };
 
