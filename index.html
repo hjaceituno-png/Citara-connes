@@ -1,12 +1,69 @@
-&lt;!DOCTYPE html&gt;<br/>&lt;html&gt;<br/>&lt;head&gt;<br/>  <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="theme-color" content="#050505">
-<link rel="manifest" href="data:application/manifest+json,{'name':'CitaraConnes','short_name':'TODA','start_url':'.','display':'standalone','background_color':'#050505'}">
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#050505">
+    <title>Cítara de Connes TODA</title>
+    <style>
+        body { background: #050505; color: #00ffcc; font-family: monospace; margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        #startBtn { width: 100%; height: 100vh; background: #050505; color: #00ffcc; border: 2px solid #00ffcc; font-size: 1.5rem; cursor: pointer; z-index: 1000; position: fixed; }
+        .header { padding: 15px; text-align: center; border-bottom: 1px solid #333; font-size: 0.8rem; }
+        .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 15px; flex-grow: 1; }
+        .key { background: #111; border: 1px solid #333; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; transition: 0.1s; -webkit-tap-highlight-color: transparent; }
+        .key:active { background: #00ffcc; color: #000; transform: scale(0.9); }
+    </style>
+</head>
+<body>
+
+<button id="startBtn">TOCAR LA RED L11<br><small>(Pulsa para iniciar)</small></button>
+
+<div class="header">CÍTARA DE CONNES v2.0 | S_E = 137 ln(28)</div>
+<div class="grid" id="board"></div>
 
 <script>
-    // Registro de Service Worker para que funcione offline
-    if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('data:application/javascript,self.addEventListener("fetch",function(e){})');
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    let prevOp = 1;
+    const kInf = 0.001515;
+
+    document.getElementById('startBtn').onclick = function() {
+        ctx.resume();
+        this.style.display = 'none';
+    };
+
+    function playOp(n) {
+        if (ctx.state === 'suspended') ctx.resume();
+        const now = ctx.currentTime;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+
+        let freq = 137.036 * (1 + Math.log(n));
+        let mod = 1.0 + (n - prevOp) / 28.0;
+        freq *= mod;
+        prevOp = n;
+
+        osc.frequency.setValueAtTime(freq, now);
+        osc.frequency.exponentialRampToValueAtTime(freq * (1 - kInf), now + 0.6);
+        
+        gain.gain.setValueAtTime(0.3, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.6);
+
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.start(); osc.stop(now + 0.6);
+    }
+
+    const board = document.getElementById('board');
+    for(let i=1; i<=28; i++) {
+        const el = document.createElement('div');
+        el.className = 'key';
+        el.innerText = i;
+        const tri = i % 3;
+        el.style.borderColor = tri === 0 ? '#ff0055' : (tri === 1 ? '#00ffcc' : '#ffcc00');
+        el.onpointerdown = (e) => { e.preventDefault(); playOp(i); };
+        board.appendChild(el);
     }
 </script>
-  &lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no&quot;&gt;<br/>    &lt;style&gt;<br/>        body { background: #050505; color: #00ffcc; font-family: &#39;monospace&#39;; margin: 0; display: flex; flex-direction: column; height: 100vh; }<br/>        .header { padding: 20px; text-align: center; border-bottom: 1px solid #333; }<br/>        .status { font-size: 10px; color: #555; margin-bottom: 10px; }<br/>        .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; padding: 20px; flex-grow: 1; }<br/>        .key { <br/>            background: #111; border: 2px solid #222; border-radius: 15px;<br/>            display: flex; flex-direction: column; align-items: center; justify-content: center;<br/>            font-size: 1.2rem; transition: all 0.05s;<br/>        }<br/>        .key:active { background: #00ffcc; color: #000; border-color: #fff; transform: scale(0.92); }<br/>        .key span { font-size: 8px; margin-top: 5px; opacity: 0.6; }<br/>    &lt;/style&gt;<br/>&lt;/head&gt;<br/>&lt;body&gt;<br/>    &lt;div class=&quot;header&quot;&gt;<br/>        &lt;div&gt;CÍTARA DE CONNES v2.0&lt;/div&gt;<br/>        &lt;div class=&quot;status&quot;&gt;S_E = 137 ln(28) | K_inf = 0.001515&lt;/div&gt;<br/>    &lt;/div&gt;<br/>    &lt;div class=&quot;grid&quot; id=&quot;board&quot;&gt;&lt;/div&gt;<div></div>    &lt;script&gt;<br/>        const ctx = new (window.AudioContext || window.webkitAudioContext)();<br/>        let prevOp = 1;<br/>        const kInf = 0.001515;<div></div>        function playOp(n) {<br/>            if (ctx.state === &#39;suspended&#39;) ctx.resume();<br/>            <br/>            const now = ctx.currentTime;<br/>            const oscV = ctx.createOscillator(); // Vector (Masa)<br/>            const oscR = ctx.createOscillator(); // Espinor R (Luz)<br/>            const gain = ctx.createGain();<div></div>            // Frecuencia de Connes con No Conmutatividad<br/>            let freq = 137.036 * (1 + Math.log(n));<br/>            let mod = 1.0 + (n - prevOp) / 28.0;<br/>            freq *= mod;<br/>            prevOp = n;<div></div>            // Simulación de Arrastre Geométrico S8<br/>            oscV.frequency.setValueAtTime(freq, now);<br/>            oscV.frequency.exponentialRampToValueAtTime(freq * (1 - kInf), now + 0.8);<br/>            <br/>            oscR.frequency.setValueAtTime(freq * 1.5, now);<br/>            oscR.type = &#39;triangle&#39;;<div></div>            gain.gain.setValueAtTime(0.4, now);<br/>            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.8);<div></div>            oscV.connect(gain); oscR.connect(gain);<br/>            gain.connect(ctx.destination);<div></div>            oscV.start(); oscR.start();<br/>            oscV.stop(now + 0.8); oscR.stop(now + 0.8);<br/>        }<div></div>        const board = document.getElementById(&#39;board&#39;);<br/>        for(let i=1; i&lt;=28; i++) {<br/>            const el = document.createElement(&#39;div&#39;);<br/>            el.className = &#39;key&#39;;<br/>            el.innerHTML = i + &#39;&lt;span&gt;OP&lt;/span&gt;&#39;;<br/>            // Colores por Trialidad<br/>            const tri = i % 3;<br/>            el.style.borderColor = tri === 0 ? &#39;#ff0055&#39; : (tri === 1 ? &#39;#00ffcc&#39; : &#39;#ffcc00&#39;);<br/>            el.ontouchstart = (e) =&gt; { e.preventDefault(); playOp(i); };<br/>            board.appendChild(el);<br/>        }<br/>    &lt;/script&gt;<br/>&lt;/body&gt;<br/>&lt;/html&gt;<br/>
+</body>
+</html>
